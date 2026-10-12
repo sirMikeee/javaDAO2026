@@ -26,8 +26,6 @@ public class UserDao {
         try (Connection conn = DatabaseConnection.getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
-
-            // Seed default admin account if table is brand new
             seedDefaultAdmin(conn);
         } catch (SQLException e) {
             System.err.println("Error initializing users table: " + e.getMessage());
@@ -100,6 +98,47 @@ public class UserDao {
         }
     }
 
+    public boolean createUserDirectly(String username, String password, String role) {
+        String sql = "INSERT INTO users(username, password, role, status) VALUES(?, ?, ?, 'APPROVED')";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+            pstmt.setString(3, role.toUpperCase());
+            pstmt.executeUpdate();
+            System.out.println("-> User created successfully and set to APPROVED!");
+            return true;
+        } catch (SQLException e) {
+            System.err.println("-> Failed to create user (username might already exist): " + e.getMessage());
+            return false;
+        }
+    }
+
+    public List<User> getAllUsers() {
+        List<User> usersList = new ArrayList<>();
+        String sql = "SELECT id, username, password, role, status FROM users";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                usersList.add(new User(
+                        rs.getInt("id"),
+                        rs.getString("username"),
+                        rs.getString("password"),
+                        rs.getString("role"),
+                        rs.getString("status")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching all users: " + e.getMessage());
+        }
+        return usersList;
+    }
+
     public List<User> getPendingUsers() {
         List<User> pendingList = new ArrayList<>();
         String sql = "SELECT id, username, password, role, status FROM users WHERE status = 'PENDING'";
@@ -139,6 +178,49 @@ public class UserDao {
             }
         } catch (SQLException e) {
             System.err.println("Error approving user: " + e.getMessage());
+        }
+        return false;
+    }
+
+    public boolean updateUserRoleAndStatus(int userId, String newRole, String newStatus) {
+        String sql = "UPDATE users SET role = ?, status = ? WHERE id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, newRole.toUpperCase());
+            pstmt.setString(2, newStatus.toUpperCase());
+            pstmt.setInt(3, userId);
+
+            int rowsUpdated = pstmt.executeUpdate();
+            if (rowsUpdated > 0) {
+                System.out.println("-> User ID " + userId + " updated successfully!");
+                return true;
+            } else {
+                System.out.println("-> User ID not found.");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error updating user: " + e.getMessage());
+        }
+        return false;
+    }
+
+    public boolean deleteUser(int userId) {
+        String sql = "DELETE FROM users WHERE id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, userId);
+            int rowsDeleted = pstmt.executeUpdate();
+            if (rowsDeleted > 0) {
+                System.out.println("-> User ID " + userId + " deleted successfully!");
+                return true;
+            } else {
+                System.out.println("-> User ID not found.");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error deleting user: " + e.getMessage());
         }
         return false;
     }
